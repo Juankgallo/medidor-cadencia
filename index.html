@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1d5a41">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cadencia">
+<title>Medidor de cadencia</title>
+<style>
+:root{
+  --bg:#e9ede6; --panel:#f8f9f5; --ink:#18241d; --muted:#5d6b62; --line:#d3dbd1;
+  --accent:#1d5a41; --accent-ink:#ffffff; --brass:#b98316; --danger:#b03a2e; --chip:#e3e9e1;
+  --f-display:"Arial Narrow","Helvetica Neue",Impact,sans-serif;
+  --f-body:system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1512; --panel:#151d19; --ink:#e4ebe5; --muted:#93a198; --line:#26322c;
+  --accent:#58b088; --accent-ink:#08130e; --brass:#e2b24a; --danger:#e26b5e; --chip:#202b25; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0f1512; --panel:#151d19; --ink:#e4ebe5; --muted:#93a198; --line:#26322c;
+  --accent:#58b088; --accent-ink:#08130e; --brass:#e2b24a; --danger:#e26b5e; --chip:#202b25; color-scheme:dark }
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--panel);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+button,select{font:inherit;color:inherit;cursor:pointer}
+main{max-width:560px;margin:0 auto;padding:max(18px,env(safe-area-inset-top)) 16px max(28px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:16px}
+.eyebrow{font-size:11.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--brass)}
+h1{margin:2px 0 0;font-family:var(--f-display);font-weight:800;font-size:34px;line-height:1.05}
+h3{margin:6px 0 0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.hint{margin:0;font-size:13.5px;color:var(--muted)}
+.hint b{color:var(--ink)}
+.status{margin:0;font-size:14px;min-height:1em}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel);padding:12px 16px;border-radius:10px;font-weight:600;font-size:15px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.field{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--muted);font-weight:600}
+.inp{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:11px 10px;font-size:15px}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;border:0;background:var(--panel);padding:11px 8px;font-size:15px;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.steps{margin:0;padding:0;list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:10px}
+.steps li{counter-increment:s;display:grid;grid-template-columns:28px 1fr;gap:10px;font-size:14px}
+.steps li::before{content:counter(s);width:26px;height:26px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font-weight:800;font-size:14px}
+.cad-read{display:flex;align-items:baseline;gap:8px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--bg)}
+.cad-read b{font-family:var(--f-display);font-weight:800;font-size:72px;line-height:1;font-variant-numeric:tabular-nums}
+.cad-read span{color:var(--muted);font-size:13px}
+.cad-read .cad-sig{margin-left:auto;text-align:right}
+.cad-chart{width:100%;height:100px;display:block;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.cad-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cad-sum div{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:12.5px;color:var(--muted);min-width:0}
+.cad-sum div b{display:block;font-size:20px;color:var(--ink);font-variant-numeric:tabular-nums}
+.tapbtn{width:100%;height:120px;border:0;border-radius:16px;background:var(--accent);color:var(--accent-ink);font-family:var(--f-display);font-weight:800;font-size:44px;letter-spacing:.06em;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.tapbtn:active{filter:brightness(1.15)}
+.cad-hist{margin:0;padding:0;list-style:none;font-size:13px}
+.cad-hist li{display:flex;justify-content:space-between;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.cad-hist li span{color:var(--muted);text-align:right}
+.sensor{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.sensor i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--line)}
+.sensor.live i{background:var(--accent)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Equitación de trabajo</div>
+    <h1>Medidor de cadencia</h1>
+  </header>
+
+  <h3>Medidor automático</h3>
+  <p class="hint">El iPhone cuenta tus trancos con su sensor de movimiento y te dice por los AirPods los <b>trancos por minuto</b>.</p>
+  <ol class="steps">
+    <li><span>Conecta los AirPods y sube el volumen. La página intenta mantener la pantalla encendida; si se apaga, pon <b>Ajustes → Pantalla y brillo → Bloqueo automático → Nunca</b> mientras mides.</span></li>
+    <li><span>Elige el aire y pulsa <b>Empezar</b>. Cuando el iPhone pregunte por el <b>movimiento y orientación</b>, toca <b>Permitir</b>.</span></li>
+    <li><span>Guarda el iPhone en un bolsillo ajustado o un brazalete, <b>bien sujeto</b>. Monta al menos 20–30 s seguidos en ese aire.</span></li>
+    <li><span>Pulsa <b>Terminar</b> y mira la media y la regularidad.</span></li>
+  </ol>
+  <div class="field">Aire<div class="seg" id="cadGait"><button data-g="paso">Paso</button><button data-g="trote">Trote</button><button data-g="galope" class="on">Galope</button></div></div>
+  <label class="field">Decir la cadencia en voz alta<select class="inp" id="cadEvery"><option value="10">Cada 10 s</option><option value="20" selected>Cada 20 s</option><option value="30">Cada 30 s</option><option value="0">Sin voz</option></select></label>
+  <div class="row"><button class="btn primary" id="cadStart">▶ Empezar a medir</button><button class="btn" id="cadStop" hidden>■ Terminar</button></div>
+  <div class="sensor" id="sensor"><i></i><span id="sensorTxt">Sensor sin activar</span></div>
+  <div class="cad-read"><b id="cadNow">–</b><span>trancos/min</span><span class="cad-sig" id="cadSig"></span></div>
+  <canvas class="cad-chart" id="cadChart"></canvas>
+  <div class="cad-sum" id="cadSum" hidden></div>
+  <p class="status" id="cadStatus"></p>
+
+  <h3>Contador manual (TAP)</h3>
+  <p class="hint">Para medir viendo un <b>video</b>, o con alguien en el suelo: toca el botón en cada tranco, siempre al apoyar <b>la misma mano</b>. Con 8–10 toques ya es fiable.</p>
+  <button class="tapbtn" id="tapBtn">TAP</button>
+  <div class="cad-sum" id="tapSum"><div><b id="tapBpm">–</b>trancos/min</div><div><b id="tapN">0</b>trancos</div><div><b id="tapCv">–</b>variación</div></div>
+  <div class="row"><button class="btn" id="tapReset">Reiniciar</button></div>
+
+  <h3>Mis mediciones</h3>
+  <ul class="cad-hist" id="cadHist"></ul>
+  <p class="hint">Se guardan solo en este iPhone. Valores orientativos: paso 50–60, trote 70–85, galope de trabajo 90–110 trancos/min, según el caballo. Caminando con el iPhone en el bolsillo verás tus pasos por minuto (unos 100–120).</p>
+</main>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const cssVar=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const CAD_HIST='et-cad-hist';
+// Duración del tranco posible en cada aire (s): los rangos no incluyen ni el doble ni la mitad,
+// así no se confunde un tranco con medio tranco (el jinete recibe 2 golpes por tranco al trote)
+const GAIT={paso:{name:'Paso',T:[0.85,1.5]},trote:{name:'Trote',T:[0.62,0.98]},galope:{name:'Galope',T:[0.48,0.78]}};
+let cadGait='galope';
+const cad={on:false,t0:0,ts:[],vs:[],dc:null,est:[],last:0,lastSay:0,lastGood:0,got:false,wake:null,timer:null,check:null};
+$$('#cadGait button').forEach(b=>b.onclick=()=>{cadGait=b.dataset.g;$$('#cadGait button').forEach(x=>x.classList.toggle('on',x===b))});
+function cadSay(t){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='es-ES';speechSynthesis.speak(u)}catch(e){}}
+function onMotion(e){const a=e.accelerationIncludingGravity;if(!a||a.x==null)return;if(!cad.got){$('#sensor').classList.add('live');$('#sensorTxt').textContent='Sensor activo'}cad.got=true;
+  const t=performance.now()/1000,v=Math.hypot(a.x,a.y,a.z);cad.dc=cad.dc==null?v:cad.dc+0.02*(v-cad.dc);
+  cad.ts.push(t);cad.vs.push(v-cad.dc);while(cad.ts.length&&cad.ts[0]<t-8){cad.ts.shift();cad.vs.shift()}}
+// Autocorrelación de los últimos 6 s, remuestreados a 50 Hz
+function cadEstimate(){const ts=cad.ts,vs=cad.vs;if(ts.length<60)return null;const end=ts[ts.length-1],start=Math.max(ts[0],end-6);if(end-start<4)return null;
+  const fs=50,n=Math.floor((end-start)*fs),x=new Float32Array(n);let j=0;
+  for(let i=0;i<n;i++){const t=start+i/fs;while(j<ts.length-2&&ts[j+1]<t)j++;const f=(t-ts[j])/((ts[j+1]-ts[j])||1);x[i]=vs[j]+(vs[j+1]-vs[j])*Math.min(1,Math.max(0,f))}
+  let m=0;for(const v of x)m+=v;m/=n;let e0=0;for(let i=0;i<n;i++){x[i]-=m;e0+=x[i]*x[i]}if(e0<1e-6)return null;
+  const [T0,T1]=GAIT[cadGait].T,l0=Math.floor(T0*fs),l1=Math.ceil(T1*fs),ac=l=>{let s=0;for(let i=0;i+l<n;i++)s+=x[i]*x[i+l];return s/e0*n/(n-l)};
+  let best=-1,bl=0;const r=[];for(let l=l0-1;l<=l1+1;l++){r[l]=ac(l)}
+  for(let l=l0;l<=l1;l++)if(r[l]>best&&r[l]>=r[l-1]&&r[l]>=r[l+1]){best=r[l];bl=l}
+  if(!bl)return null;const d=(r[bl-1]-r[bl+1])/(2*(r[bl-1]-2*r[bl]+r[bl+1])||1),T=(bl+(Math.abs(d)<1?d:0))/fs;
+  return{spm:60/T,r:best}}
+function cadTick(){const t=performance.now()/1000;
+  if(!cad.got&&t-cad.t0>3){cadStop(true);$('#sensorTxt').textContent='El sensor no envía datos';$('#cadStatus').textContent='El sensor de movimiento no envía datos. Cierra la pestaña, vuelve a abrir la página y, al pulsar Empezar, toca Permitir. Mientras tanto puedes usar el contador TAP.';return}
+  const e=cadEstimate();
+  if(e&&e.r>=0.25){cad.est.push({t:t-cad.t0,spm:e.spm});cad.lastGood=t;$('#cadNow').textContent=Math.round(e.spm);
+    $('#cadSig').textContent=e.r>=0.5?'señal buena':'señal débil';
+    const every=+$('#cadEvery').value;if(every&&t-cad.lastSay>=every){cad.lastSay=t;cadSay(String(Math.round(e.spm)))}}
+  else{$('#cadSig').textContent=cad.ts.length<60?'midiendo…':'sin ritmo claro';
+    if(t-cad.lastGood>15&&t-cad.lastSay>15&&+$('#cadEvery').value){cad.lastSay=t;cadSay('Sin ritmo claro')}}
+  drawCad()}
+function drawCad(){const c=$('#cadChart'),r=c.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);if(!r.width)return;
+  c.width=r.width*dpr;c.height=r.height*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);const W=r.width,H=r.height,E=cad.est;
+  g.clearRect(0,0,W,H);if(E.length<2){g.fillStyle=cssVar('--muted');g.font='12px system-ui';g.fillText('La gráfica aparece al medir',10,H/2+4);return}
+  let lo=Infinity,hi=-Infinity;E.forEach(p=>{lo=Math.min(lo,p.spm);hi=Math.max(hi,p.spm)});const mid=(lo+hi)/2,span=Math.max(10,hi-lo+4);lo=mid-span/2;hi=mid+span/2;
+  const tx=t=>8+(W-16)*(t-E[0].t)/Math.max(1,E[E.length-1].t-E[0].t),ty=v=>H-8-(H-16)*(v-lo)/(hi-lo);
+  g.strokeStyle=cssVar('--line');g.lineWidth=1;g.beginPath();g.moveTo(8,ty(mid));g.lineTo(W-8,ty(mid));g.stroke();
+  g.fillStyle=cssVar('--muted');g.font='11px system-ui';g.fillText(Math.round(hi),W-26,14);g.fillText(Math.round(lo),W-26,H-4);
+  g.strokeStyle=cssVar('--accent');g.lineWidth=2;g.beginPath();E.forEach((p,i)=>{i?g.lineTo(tx(p.t),ty(p.spm)):g.moveTo(tx(p.t),ty(p.spm))});g.stroke()}
+const statsOf=a=>{const n=a.length,m=a.reduce((s,v)=>s+v,0)/n,sd=n>1?Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/(n-1)):0;return{n,m,sd,cv:m?sd/m*100:0}};
+const cvWord=cv=>cv<3?'muy regular':cv<5?'regular':'irregular: el compás cambió';
+async function cadStart(){
+  if(typeof DeviceMotionEvent==='undefined'){$('#cadStatus').textContent='Este navegador no tiene sensor de movimiento. Usa el contador TAP.';return}
+  try{if(typeof DeviceMotionEvent.requestPermission==='function'){const p=await DeviceMotionEvent.requestPermission();
+    if(p!=='granted'){$('#sensorTxt').textContent='Permiso denegado';$('#cadStatus').textContent='No se dio permiso para usar el movimiento. Cierra la pestaña de Safari, vuelve a abrir la página, pulsa Empezar y toca Permitir.';return}}}
+  catch(e){$('#cadStatus').textContent='Este navegador no deja usar el sensor de movimiento. Usa el contador TAP.';return}
+  Object.assign(cad,{on:true,t0:performance.now()/1000,ts:[],vs:[],dc:null,est:[],lastSay:performance.now()/1000,lastGood:performance.now()/1000,got:false});
+  window.addEventListener('devicemotion',onMotion);cad.timer=setInterval(cadTick,1000);
+  try{cad.wake=await navigator.wakeLock?.request('screen')}catch(e){cad.wake=null}
+  if(+$('#cadEvery').value)cadSay('Midiendo '+GAIT[cadGait].name.toLowerCase());
+  $('#cadStart').hidden=true;$('#cadStop').hidden=false;$('#cadSum').hidden=true;$('#cadNow').textContent='–';$('#cadSig').textContent='midiendo…';
+  $('#sensorTxt').textContent='Esperando datos del sensor…';$('#cadStatus').textContent='Midiendo. Guarda el iPhone bien sujeto y monta en '+GAIT[cadGait].name.toLowerCase()+'.';drawCad()}
+function cadStop(silent){if(!cad.on)return;cad.on=false;$('#sensor').classList.remove('live');if(cad.got)$('#sensorTxt').textContent='Sensor en pausa';window.removeEventListener('devicemotion',onMotion);clearInterval(cad.timer);
+  try{cad.wake&&cad.wake.release()}catch(e){}cad.wake=null;$('#cadStart').hidden=false;$('#cadStop').hidden=true;
+  if(silent)return;const v=cad.est.map(p=>p.spm);
+  if(v.length<5){$('#cadStatus').textContent='No hubo suficientes datos con ritmo claro. Sujeta mejor el iPhone y mide al menos 20–30 s en el mismo aire.';return}
+  const s=statsOf(v),dur=Math.round(cad.est[cad.est.length-1].t);
+  $('#cadSum').hidden=false;$('#cadSum').innerHTML=`<div><b>${Math.round(s.m)}</b>media (trancos/min)</div><div><b>${Math.round(Math.min(...v))}–${Math.round(Math.max(...v))}</b>mín–máx</div><div><b>${s.cv.toFixed(1).replace('.',',')} %</b>variación</div>`;
+  $('#cadStatus').textContent=`${GAIT[cadGait].name}, ${dur} s: ${Math.round(s.m)} trancos/min de media, ${cvWord(s.cv)}. La variación compara tramos de unos segundos, no tranco a tranco.`;
+  if(+$('#cadEvery').value)cadSay(`Media ${Math.round(s.m)}. ${cvWord(s.cv).split(':')[0]}`);
+  addHist({aire:GAIT[cadGait].name,m:Math.round(s.m),cv:s.cv,dur,how:'auto'})}
+function addHist(h){let a=[];try{a=JSON.parse(store.get(CAD_HIST)||'[]')}catch(e){}
+  const d=new Date();h.f=d.toLocaleDateString('es',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+  a.unshift(h);store.set(CAD_HIST,JSON.stringify(a.slice(0,10)));renderHist()}
+function renderHist(){let a=[];try{a=JSON.parse(store.get(CAD_HIST)||'[]')}catch(e){}
+  $('#cadHist').innerHTML=a.length?a.map(h=>`<li><b>${esc(h.aire)} · ${h.m} trancos/min</b><span>${(+h.cv).toFixed(1).replace('.',',')} % · ${h.how==='tap'?'TAP':h.dur+' s'} · ${esc(h.f)}</span></li>`).join('')
+    :'<li><span>Todavía no hay mediciones.</span></li>'}
+$('#cadStart').onclick=cadStart;$('#cadStop').onclick=()=>cadStop(false);
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&cad.on){cadStop(false);$('#cadStatus').textContent+=' (Se paró porque la pantalla se apagó o cambiaste de app.)'}});
+// Contador manual
+let taps=[];
+function tapRender(){const iv=[];for(let i=1;i<taps.length;i++)iv.push(taps[i]-taps[i-1]);const w=iv.slice(-16);
+  $('#tapN').textContent=Math.max(0,taps.length-1);
+  if(w.length<2){$('#tapBpm').textContent='–';$('#tapCv').textContent='–';return}
+  const s=statsOf(w);$('#tapBpm').textContent=Math.round(60000/s.m);$('#tapCv').textContent=s.cv.toFixed(1).replace('.',',')+' %'}
+$('#tapBtn').addEventListener('pointerdown',e=>{e.preventDefault();const t=performance.now();
+  if(taps.length&&t-taps[taps.length-1]>2500){if(taps.length>=9)tapSave();taps=[]}taps.push(t);tapRender()});
+function tapSave(){const iv=[];for(let i=1;i<taps.length;i++)iv.push(taps[i]-taps[i-1]);const s=statsOf(iv.slice(-16));
+  addHist({aire:'TAP',m:Math.round(60000/s.m),cv:s.cv,dur:0,how:'tap'})}
+$('#tapReset').onclick=()=>{if(taps.length>=9)tapSave();taps=[];tapRender()};
+renderHist();
+
+window.addEventListener('resize',drawCad);drawCad();
+
+</script>
+</body>
+</html>
