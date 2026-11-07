@@ -75,10 +75,11 @@ h3{margin:6px 0 0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;c
     <li><span>Conecta los AirPods y sube el volumen. La página intenta mantener la pantalla encendida; si se apaga, pon <b>Ajustes → Pantalla y brillo → Bloqueo automático → Nunca</b> mientras mides.</span></li>
     <li><span>Elige el aire y pulsa <b>Empezar</b>. Cuando el iPhone pregunte por el <b>movimiento y orientación</b>, toca <b>Permitir</b>.</span></li>
     <li><span>Guarda el iPhone en un bolsillo ajustado o un brazalete, <b>bien sujeto</b>. Monta al menos 20–30 s seguidos en ese aire.</span></li>
-    <li><span>Pulsa <b>Terminar</b> y mira la media y la regularidad.</span></li>
+    <li><span>Pulsa <b>Terminar</b> y mira la media y la regularidad. Lo que pasa mientras guardas o sacas el iPhone no cuenta: hay una cuenta atrás al empezar y se descartan los últimos segundos.</span></li>
   </ol>
   <div class="field">Aire<div class="seg" id="cadGait"><button data-g="paso">Paso</button><button data-g="trote">Trote</button><button data-g="galope" class="on">Galope</button></div></div>
   <label class="field">Decir la cadencia en voz alta<select class="inp" id="cadEvery"><option value="10">Cada 10 s</option><option value="20" selected>Cada 20 s</option><option value="30">Cada 30 s</option><option value="0">Sin voz</option></select></label>
+  <label class="field">Cuenta atrás antes de medir (para guardar el iPhone)<select class="inp" id="cadCount"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="15">15 s</option><option value="0">Sin cuenta atrás</option></select></label>
   <div class="row"><button class="btn primary" id="cadStart">▶ Empezar a medir</button><button class="btn" id="cadStop" hidden>■ Terminar</button></div>
   <div class="sensor" id="sensor"><i></i><span id="sensorTxt">Sensor sin activar</span></div>
   <div class="cad-read"><b id="cadNow">–</b><span>trancos/min</span><span class="cad-sig" id="cadSig"></span></div>
@@ -106,7 +107,7 @@ const CAD_HIST='et-cad-hist';
 // así no se confunde un tranco con medio tranco (el jinete recibe 2 golpes por tranco al trote)
 const GAIT={paso:{name:'Paso',T:[0.85,1.5]},trote:{name:'Trote',T:[0.62,0.98]},galope:{name:'Galope',T:[0.48,0.78]}};
 let cadGait='galope';
-const cad={on:false,t0:0,ts:[],vs:[],dc:null,est:[],last:0,lastSay:0,lastGood:0,got:false,wake:null,timer:null,check:null};
+const cad={on:false,t0:0,tStart:0,count:0,ts:[],vs:[],dc:null,est:[],last:0,lastSay:0,lastGood:0,got:false,wake:null,timer:null,check:null};
 $$('#cadGait button').forEach(b=>b.onclick=()=>{cadGait=b.dataset.g;$$('#cadGait button').forEach(x=>x.classList.toggle('on',x===b))});
 function cadSay(t){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='es-ES';speechSynthesis.speak(u)}catch(e){}}
 function onMotion(e){const a=e.accelerationIncludingGravity;if(!a||a.x==null)return;if(!cad.got){$('#sensor').classList.add('live');$('#sensorTxt').textContent='Sensor activo'}cad.got=true;
@@ -123,12 +124,17 @@ function cadEstimate(){const ts=cad.ts,vs=cad.vs;if(ts.length<60)return null;con
   if(!bl)return null;const d=(r[bl-1]-r[bl+1])/(2*(r[bl-1]-2*r[bl]+r[bl+1])||1),T=(bl+(Math.abs(d)<1?d:0))/fs;
   return{spm:60/T,r:best}}
 function cadTick(){const t=performance.now()/1000;
-  if(!cad.got&&t-cad.t0>3){cadStop(true);$('#sensorTxt').textContent='El sensor no envía datos';$('#cadStatus').textContent='El sensor de movimiento no envía datos. Cierra la pestaña, vuelve a abrir la página y, al pulsar Empezar, toca Permitir. Mientras tanto puedes usar el contador TAP.';return}
+  if(!cad.got&&t-cad.tStart>3){cadStop(true);$('#sensorTxt').textContent='El sensor no envía datos';$('#cadStatus').textContent='El sensor de movimiento no envía datos. Cierra la pestaña, vuelve a abrir la página y, al pulsar Empezar, toca Permitir. Mientras tanto puedes usar el contador TAP.';return}
+  if(cad.count>0){cad.count--;const voz=+$('#cadEvery').value;
+    if(cad.count>0){$('#cadNow').textContent=cad.count;if(voz&&cad.count<=5)cadSay(String(cad.count));return}
+    // ¡Ya! Se empieza a medir desde cero, sin lo registrado mientras se guardaba el iPhone
+    Object.assign(cad,{t0:t,ts:[],vs:[],est:[],lastSay:t,lastGood:t});$('#cadNow').textContent='–';$('#cadSig').textContent='midiendo…';
+    $('#cadStatus').textContent='Midiendo '+GAIT[cadGait].name.toLowerCase()+'.';if(voz)cadSay('Ya. Midiendo '+GAIT[cadGait].name.toLowerCase());drawCad();return}
   const e=cadEstimate();
   if(e&&e.r>=0.25){cad.est.push({t:t-cad.t0,spm:e.spm});cad.lastGood=t;$('#cadNow').textContent=Math.round(e.spm);
     $('#cadSig').textContent=e.r>=0.5?'señal buena':'señal débil';
     const every=+$('#cadEvery').value;if(every&&t-cad.lastSay>=every){cad.lastSay=t;cadSay(String(Math.round(e.spm)))}}
-  else{$('#cadSig').textContent=cad.ts.length<60?'midiendo…':'sin ritmo claro';
+  else{$('#cadSig').textContent=t-cad.t0<6?'midiendo…':'sin ritmo claro';
     if(t-cad.lastGood>15&&t-cad.lastSay>15&&+$('#cadEvery').value){cad.lastSay=t;cadSay('Sin ritmo claro')}}
   drawCad()}
 function drawCad(){const c=$('#cadChart'),r=c.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);if(!r.width)return;
@@ -146,15 +152,22 @@ async function cadStart(){
   try{if(typeof DeviceMotionEvent.requestPermission==='function'){const p=await DeviceMotionEvent.requestPermission();
     if(p!=='granted'){$('#sensorTxt').textContent='Permiso denegado';$('#cadStatus').textContent='No se dio permiso para usar el movimiento. Cierra la pestaña de Safari, vuelve a abrir la página, pulsa Empezar y toca Permitir.';return}}}
   catch(e){$('#cadStatus').textContent='Este navegador no deja usar el sensor de movimiento. Usa el contador TAP.';return}
-  Object.assign(cad,{on:true,t0:performance.now()/1000,ts:[],vs:[],dc:null,est:[],lastSay:performance.now()/1000,lastGood:performance.now()/1000,got:false});
+  const now=performance.now()/1000;
+  Object.assign(cad,{on:true,t0:now,tStart:now,count:+$('#cadCount').value,ts:[],vs:[],dc:null,est:[],lastSay:now,lastGood:now,got:false});
   window.addEventListener('devicemotion',onMotion);cad.timer=setInterval(cadTick,1000);
   try{cad.wake=await navigator.wakeLock?.request('screen')}catch(e){cad.wake=null}
-  if(+$('#cadEvery').value)cadSay('Midiendo '+GAIT[cadGait].name.toLowerCase());
-  $('#cadStart').hidden=true;$('#cadStop').hidden=false;$('#cadSum').hidden=true;$('#cadNow').textContent='–';$('#cadSig').textContent='midiendo…';
-  $('#sensorTxt').textContent='Esperando datos del sensor…';$('#cadStatus').textContent='Midiendo. Guarda el iPhone bien sujeto y monta en '+GAIT[cadGait].name.toLowerCase()+'.';drawCad()}
+  const voz=+$('#cadEvery').value,g=GAIT[cadGait].name.toLowerCase();
+  $('#cadStart').hidden=true;$('#cadStop').hidden=false;$('#cadSum').hidden=true;$('#sensorTxt').textContent='Esperando datos del sensor…';
+  if(cad.count>0){$('#cadNow').textContent=cad.count;$('#cadSig').textContent='prepárate';
+    $('#cadStatus').textContent=`Guarda el iPhone bien sujeto. Empieza a medir en ${cad.count} s.`;if(voz)cadSay(`Guarda el iPhone. Empieza en ${cad.count} segundos`)}
+  else{$('#cadNow').textContent='–';$('#cadSig').textContent='midiendo…';$('#cadStatus').textContent='Midiendo '+g+'.';if(voz)cadSay('Midiendo '+g)}
+  drawCad()}
 function cadStop(silent){if(!cad.on)return;cad.on=false;$('#sensor').classList.remove('live');if(cad.got)$('#sensorTxt').textContent='Sensor en pausa';window.removeEventListener('devicemotion',onMotion);clearInterval(cad.timer);
   try{cad.wake&&cad.wake.release()}catch(e){}cad.wake=null;$('#cadStart').hidden=false;$('#cadStop').hidden=true;
-  if(silent)return;const v=cad.est.map(p=>p.spm);
+  if(silent)return;
+  if(cad.count>0){$('#cadNow').textContent='–';$('#cadSig').textContent='';$('#cadStatus').textContent='Cancelado antes de empezar a medir.';return}
+  // Se descartan los últimos 3 s: es cuando se saca el iPhone del bolsillo
+  const tEnd=performance.now()/1000-cad.t0;cad.est=cad.est.filter(p=>p.t<=tEnd-3);drawCad();const v=cad.est.map(p=>p.spm);
   if(v.length<5){$('#cadStatus').textContent='No hubo suficientes datos con ritmo claro. Sujeta mejor el iPhone y mide al menos 20–30 s en el mismo aire.';return}
   const s=statsOf(v),dur=Math.round(cad.est[cad.est.length-1].t);
   $('#cadSum').hidden=false;$('#cadSum').innerHTML=`<div><b>${Math.round(s.m)}</b>media (trancos/min)</div><div><b>${Math.round(Math.min(...v))}–${Math.round(Math.max(...v))}</b>mín–máx</div><div><b>${s.cv.toFixed(1).replace('.',',')} %</b>variación</div>`;
