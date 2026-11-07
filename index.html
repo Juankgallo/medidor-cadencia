@@ -154,7 +154,7 @@ const CAD_HIST='et-cad-hist';
 // así no se confunde un tranco con medio tranco (el jinete recibe 2 golpes por tranco al trote)
 const GAIT={paso:{name:'Paso',T:[0.85,1.5]},trote:{name:'Trote',T:[0.62,0.98]},galope:{name:'Galope',T:[0.48,0.78]}};
 let cadGait='galope';
-const OBSTACULOS=['Trabajo libre (sin obstáculo)','Recorrido completo','Puerta','Puerta de cuerda (lazo)','Puente','Slalom simple','Slalom paralelo','Tres barriles (trébol)','Ocho de barriles','Corredor y campana','Cántaro','Coger la garrocha','Ensartar la anilla (toro)','Garrocha y anilla (toro)','Dejar la garrocha','Fardos (salto)','Paso lateral','Aprisco (redil)'];
+const OBSTACULOS=['Trabajo libre (sin obstáculo)','Recorrido completo','Vara en el piso','Puerta','Puerta de cuerda (lazo)','Puente','Slalom simple','Slalom paralelo','Tres barriles (trébol)','Ocho de barriles','Corredor y campana','Cántaro','Coger la garrocha','Ensartar la anilla (toro)','Garrocha y anilla (toro)','Dejar la garrocha','Fardos (salto)','Paso lateral','Aprisco (redil)'];
 $('#cadObs').innerHTML=OBSTACULOS.map(o=>`<option>${esc(o)}</option>`).join('');
 {const o=store.get('cad-obs');if(o&&OBSTACULOS.includes(o))$('#cadObs').value=o}
 $('#cadObs').onchange=e=>store.set('cad-obs',e.target.value);
