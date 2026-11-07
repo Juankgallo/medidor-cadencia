@@ -69,6 +69,12 @@ header .back{align-self:flex-start;padding:8px 12px;font-size:14px}
 .btn.sm.on{border-color:var(--accent);color:var(--accent)}
 .btn.armed{background:var(--danger);color:#fff;border-color:transparent}
 .mark{font-size:13.5px;font-weight:600;color:var(--muted)}
+.nota{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border:1px solid var(--brass);border-radius:14px;background:color-mix(in srgb,var(--brass) 8%,transparent)}
+.nota b.t{font-size:15px}
+.nota-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.nota-grid button{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:10px 0;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.nota-grid button.on{background:var(--brass);border-color:var(--brass);color:#1b1404}
+.ses li em{grid-column:1;font-style:normal;font-size:12.5px;color:var(--ink)}
 .mark.ok{color:var(--accent)}
 .ses{margin:0;padding:0;list-style:none}
 .ses li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:9px 2px;border-bottom:1px solid var(--line);font-size:13.5px}
@@ -109,6 +115,12 @@ header .back{align-self:flex-start;padding:8px 12px;font-size:14px}
   <div class="cad-read"><b id="cadNow">–</b><span>trancos/min</span><span class="cad-sig" id="cadSig"></span></div>
   <canvas class="cad-chart" id="cadChart"></canvas>
   <div class="cad-sum" id="cadSum" hidden></div>
+  <div class="nota" id="notaCard" hidden>
+    <b class="t" id="notaTitle">¿Cómo salió este intento?</b>
+    <div class="field">Tu nota (0–10)<div class="nota-grid" id="notaGrid"></div></div>
+    <label class="field">Comentario<input class="inp" id="notaTxt" maxlength="200" placeholder="Ej.: se aceleró en el 3.er poste; cambio de pie tardío" enterkeyhint="done"></label>
+    <div class="row"><button class="btn primary" id="notaSave">Guardar nota</button><button class="btn" id="notaSkip">Ahora no</button></div>
+  </div>
   <p class="status" id="cadStatus"></p>
 
   <h3>Contador manual (TAP)</h3>
@@ -207,7 +219,7 @@ async function cadStart(){
   window.addEventListener('devicemotion',onMotion);cad.timer=setInterval(cadTick,1000);
   try{cad.wake=await navigator.wakeLock?.request('screen')}catch(e){cad.wake=null}
   const voz=+$('#cadEvery').value,g=GAIT[cadGait].name.toLowerCase();
-  $('#cadStart').hidden=true;$('#cadStop').hidden=false;$('#cadSum').hidden=true;$('#sensorTxt').textContent='Esperando datos del sensor…';
+  $('#cadStart').hidden=true;$('#cadStop').hidden=false;$('#cadSum').hidden=true;$('#notaCard').hidden=true;notaId=null;$('#sensorTxt').textContent='Esperando datos del sensor…';
   if(cad.count>0){$('#cadNow').textContent=cad.count;$('#cadSig').textContent='prepárate';
     $('#cadStatus').textContent=`Guarda el iPhone bien sujeto. Empieza a medir en ${cad.count} s.`;if(voz)cadSay(`Guarda el iPhone. Empieza en ${cad.count} segundos`)}
   else{$('#cadNow').textContent='–';$('#cadSig').textContent='midiendo…';$('#cadStatus').textContent='Midiendo '+g+'.';if(voz)cadSay('Midiendo '+g)}
@@ -219,13 +231,13 @@ function cadStop(silent){if(!cad.on)return;cad.on=false;rec.on=false;$('#sensor'
   // Se descartan los últimos 3 s: es cuando se saca el iPhone del bolsillo
   const tEnd=performance.now()/1000-cad.t0;cad.est=cad.est.filter(p=>p.t<=tEnd-3);drawCad();const v=cad.est.map(p=>p.spm);
   if(v.length<5){$('#cadStatus').textContent='No hubo suficientes datos con ritmo claro para dar una media (normal si hubo paradas). La sesión se guardó igualmente para verla con el video.';
-    saveSession(sessionOf(null,v,tEnd));return}
+    saveSession(sessionOf(null,v,tEnd));openNota('s'+rec.start);return}
   const s=statsOf(v),dur=Math.round(cad.est[cad.est.length-1].t);
   $('#cadSum').hidden=false;$('#cadSum').innerHTML=`<div><b>${Math.round(s.m)}</b>media (trancos/min)</div><div><b>${Math.round(Math.min(...v))}–${Math.round(Math.max(...v))}</b>mín–máx</div><div><b>${s.cv.toFixed(1).replace('.',',')} %</b>variación</div>`;
   $('#cadStatus').textContent=`${pick.horse} (${pick.rider}) · ${GAIT[cadGait].name}, ${dur} s: ${Math.round(s.m)} trancos/min de media, ${cvWord(s.cv)}. La variación compara tramos de unos segundos, no tranco a tranco.`;
   if(+$('#cadEvery').value)cadSay(`${pick.horse}, ${GAIT[cadGait].name.toLowerCase()}: media ${Math.round(s.m)}. ${cvWord(s.cv).split(':')[0]}`);
-  addHist({caballo:pick.horse,jinete:pick.rider,aire:GAIT[cadGait].name,obstaculo:$('#cadObs').value,m:Math.round(s.m),cv:s.cv,dur,how:'auto'});
-  saveSession(sessionOf(s,v,tEnd))}
+  addHist({id:'s'+rec.start,caballo:pick.horse,jinete:pick.rider,aire:GAIT[cadGait].name,obstaculo:$('#cadObs').value,m:Math.round(s.m),cv:s.cv,dur,how:'auto'});
+  saveSession(sessionOf(s,v,tEnd));openNota('s'+rec.start)}
 function sessionOf(s,v,tEnd){return({v:1,id:'s'+rec.start,inicio:new Date(rec.start).toISOString(),zona:Intl.DateTimeFormat().resolvedOptions().timeZone,
     caballo:pick.horse,jinete:pick.rider,aire:GAIT[cadGait].name,gaitKey:cadGait,obstaculo:$('#cadObs').value,
     hz:REC_HZ,marcaMs:rec.mark,medidaDesdeMs:rec.from,finMs:Math.round(tEnd*1000)+rec.from,
@@ -243,13 +255,27 @@ async function exportJSON(obj,name){const blob=new Blob([JSON.stringify(obj)],{t
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)}
 function renderSessions(){const a=readSessions();
   $('#sesList').innerHTML=a.length?a.map((x,i)=>{const d=new Date(x.inicio);
-    return `<li><b>${esc(x.caballo)} · ${esc(x.obstaculo)}</b><div class="act"><button class="btn sm" data-exp="${i}">Exportar</button><button class="btn sm" data-del="${i}">Borrar</button></div>
-      <span>${esc(x.jinete)} · ${esc(x.aire)} · ${x.resumen.media!=null?Math.round(x.resumen.media)+' trancos/min':'sin media'} · ${x.resumen.dur} s · ${x.marcaMs!=null?'✓':'sin sacudida'} · ${d.toLocaleDateString('es',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'})}</span></li>`}).join('')
+    return `<li><b>${esc(x.caballo)} · ${esc(x.obstaculo)}</b><div class="act"><button class="btn sm" data-nota="${esc(x.id)}">Nota</button><button class="btn sm" data-exp="${i}">Exportar</button><button class="btn sm" data-del="${i}">Borrar</button></div>
+      <span>${esc(x.jinete)} · ${esc(x.aire)} · ${x.resumen.media!=null?Math.round(x.resumen.media)+' trancos/min':'sin media'} · ${x.resumen.dur} s · ${x.marcaMs!=null?'✓':'sin sacudida'} · ${d.toLocaleDateString('es',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'})}</span>${x.nota!=null||x.comentario?`<em>${x.nota!=null?'Nota '+x.nota:''}${x.nota!=null&&x.comentario?' · ':''}${esc(x.comentario||'')}</em>`:''}</li>`}).join('')
     :'<li><span>Todavía no hay sesiones.</span></li>';
   $('#sesAll').hidden=a.length<2;
   $$('#sesList [data-exp]').forEach(b=>b.onclick=()=>{const x=readSessions()[+b.dataset.exp];if(x)exportJSON(x,sesName(x))});
+  $$('#sesList [data-nota]').forEach(b=>b.onclick=()=>{openNota(b.dataset.nota);$('#notaCard').scrollIntoView({behavior:'smooth',block:'center'})});
   $$('#sesList [data-del]').forEach(b=>{let t=null;b.onclick=()=>{if(b.classList.contains('armed')){clearTimeout(t);const a2=readSessions();a2.splice(+b.dataset.del,1);writeSessions(a2);renderSessions();return}
     b.classList.add('armed');b.textContent='¿Seguro?';t=setTimeout(()=>{b.classList.remove('armed');b.textContent='Borrar'},3000)}})}
+// Nota y comentario de cada intento (se guardan en la sesión y en el historial)
+let notaId=null,notaVal=null;
+$('#notaGrid').innerHTML=[...Array(11)].map((_,n)=>`<button data-n="${n}">${n}</button>`).join('');
+$$('#notaGrid button').forEach(b=>b.onclick=()=>{notaVal=+b.dataset.n;$$('#notaGrid button').forEach(x=>x.classList.toggle('on',x===b))});
+function openNota(id){const x=readSessions().find(q=>q.id===id);if(!x)return;notaId=id;notaVal=x.nota??null;
+  $('#notaTitle').textContent=`¿Cómo salió? ${x.caballo} · ${x.obstaculo}`;$('#notaTxt').value=x.comentario||'';
+  $$('#notaGrid button').forEach(b=>b.classList.toggle('on',+b.dataset.n===notaVal));$('#notaCard').hidden=false}
+$('#notaSave').onclick=()=>{if(!notaId)return;const txt=$('#notaTxt').value.trim(),a=readSessions(),x=a.find(q=>q.id===notaId);
+  if(x){x.nota=notaVal;x.comentario=txt;writeSessions(a)}
+  const h=readHist(),e=h.find(q=>q.id===notaId);if(e){e.nota=notaVal;e.comentario=txt;store.set(CAD_HIST,JSON.stringify(h))}
+  $('#notaCard').hidden=true;$('#notaTxt').blur();notaId=null;renderSessions();renderHist();
+  $('#cadStatus').textContent+=notaVal!=null?` Nota guardada: ${notaVal}.`:' Comentario guardado.'};
+$('#notaSkip').onclick=()=>{$('#notaCard').hidden=true;notaId=null};
 $('#sesAll').onclick=()=>{const a=readSessions();if(!a.length)return;const d=new Date(),z=n=>String(n).padStart(2,'0');
   exportJSON({v:1,sesiones:a},`cadencia_todas_${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}.json`)};
 function addHist(h){let a=[];try{a=JSON.parse(store.get(CAD_HIST)||'[]')}catch(e){}
@@ -267,7 +293,7 @@ function renderHist(){const a=readHist(),HS=$$('#cadHorse button').map(b=>b.text
   $$('#cadRes [data-h]').forEach(b=>b.onclick=()=>{histHorse=histHorse===b.dataset.h?null:b.dataset.h;renderHist()});
   const list=histHorse?a.filter(h=>h.caballo===histHorse):a;
   $('#histFilter').textContent=histHorse?`Mostrando solo ${histHorse}. Toca su nombre otra vez para ver todos.`:'';
-  $('#cadHist').innerHTML=list.length?list.slice(0,40).map(h=>`<li><b>${esc(h.caballo||'–')} · ${esc(h.aire)} · ${h.m}</b>${h.obstaculo?`<span>${esc(h.obstaculo)}</span>`:''}<span>${esc(h.jinete||'')} · ${(+h.cv).toFixed(1).replace('.',',')} % · ${h.how==='tap'?'TAP':h.dur+' s'} · ${esc(h.f)}</span></li>`).join('')
+  $('#cadHist').innerHTML=list.length?list.slice(0,40).map(h=>`<li><b>${esc(h.caballo||'–')} · ${esc(h.aire)} · ${h.m}</b>${h.obstaculo?`<span>${esc(h.obstaculo)}${h.nota!=null?' · Nota '+h.nota:''}${h.comentario?' · '+esc(h.comentario):''}</span>`:''}<span>${esc(h.jinete||'')} · ${(+h.cv).toFixed(1).replace('.',',')} % · ${h.how==='tap'?'TAP':h.dur+' s'} · ${esc(h.f)}</span></li>`).join('')
     :'<li><span>Todavía no hay mediciones.</span></li>'}
 // Caballo y jinete elegidos (se recuerdan en este iPhone)
 const pick={horse:store.get('cad-horse')||'Orador',rider:store.get('cad-rider')||'Juan'};
