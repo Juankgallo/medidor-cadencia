@@ -54,8 +54,17 @@ h3{margin:6px 0 0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;c
 .tapbtn{width:100%;height:120px;border:0;border-radius:16px;background:var(--accent);color:var(--accent-ink);font-family:var(--f-display);font-weight:800;font-size:44px;letter-spacing:.06em;touch-action:manipulation;user-select:none;-webkit-user-select:none}
 .tapbtn:active{filter:brightness(1.15)}
 .cad-hist{margin:0;padding:0;list-style:none;font-size:13px}
-.cad-hist li{display:flex;justify-content:space-between;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
-.cad-hist li span{color:var(--muted);text-align:right}
+.cad-hist li{display:flex;flex-direction:column;gap:2px;padding:7px 2px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.cad-hist li span{color:var(--muted)}
+.seg.pick button{font-size:14px;padding:11px 4px;min-width:0}
+.res{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+.res th,.res td{padding:7px 4px;border-bottom:1px solid var(--line);text-align:center}
+.res th{font-size:12px;color:var(--muted);font-weight:600}
+.res td:first-child,.res th:first-child{text-align:left;font-weight:600}
+.res small{display:block;color:var(--muted);font-size:11px}
+.btn.sm{padding:5px 9px;font-size:13.5px}
+.btn.sm.on{border-color:var(--accent);color:var(--accent)}
+.btn.armed{background:var(--danger);color:#fff;border-color:transparent}
 .sensor{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .sensor i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--line)}
 .sensor.live i{background:var(--accent)}
@@ -77,6 +86,8 @@ h3{margin:6px 0 0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;c
     <li><span>Guarda el iPhone en un bolsillo ajustado o un brazalete, <b>bien sujeto</b>. Monta al menos 20–30 s seguidos en ese aire.</span></li>
     <li><span>Pulsa <b>Terminar</b> y mira la media y la regularidad. Lo que pasa mientras guardas o sacas el iPhone no cuenta: hay una cuenta atrás al empezar y se descartan los últimos segundos.</span></li>
   </ol>
+  <div class="field">Caballo<div class="seg pick" id="cadHorse"><button>Orador</button><button>Marcopolo</button><button>Chicanero</button><button>Bacán</button></div></div>
+  <div class="field">Jinete<div class="seg pick" id="cadRider"><button>Juan</button><button>Leidy</button><button>Juanita</button></div></div>
   <div class="field">Aire<div class="seg" id="cadGait"><button data-g="paso">Paso</button><button data-g="trote">Trote</button><button data-g="galope" class="on">Galope</button></div></div>
   <label class="field">Decir la cadencia en voz alta<select class="inp" id="cadEvery"><option value="10">Cada 10 s</option><option value="20" selected>Cada 20 s</option><option value="30">Cada 30 s</option><option value="0">Sin voz</option></select></label>
   <label class="field">Cuenta atrás antes de medir (para guardar el iPhone)<select class="inp" id="cadCount"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="15">15 s</option><option value="0">Sin cuenta atrás</option></select></label>
@@ -93,8 +104,14 @@ h3{margin:6px 0 0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;c
   <div class="cad-sum" id="tapSum"><div><b id="tapBpm">–</b>trancos/min</div><div><b id="tapN">0</b>trancos</div><div><b id="tapCv">–</b>variación</div></div>
   <div class="row"><button class="btn" id="tapReset">Reiniciar</button></div>
 
+  <h3>Resumen por caballo</h3>
+  <table class="res" id="cadRes"></table>
+  <p class="hint">Media de las mediciones de cada caballo en cada aire (entre paréntesis, cuántas). Toca un nombre para ver solo ese caballo en la lista de abajo.</p>
+
   <h3>Mis mediciones</h3>
+  <p class="hint" id="histFilter"></p>
   <ul class="cad-hist" id="cadHist"></ul>
+  <div class="row"><button class="btn" id="histClear">Borrar historial</button></div>
   <p class="hint">Se guardan solo en este iPhone. Valores orientativos: paso 50–60, trote 70–85, galope de trabajo 90–110 trancos/min, según el caballo. Caminando con el iPhone en el bolsillo verás tus pasos por minuto (unos 100–120).</p>
 </main>
 <script>
@@ -171,15 +188,34 @@ function cadStop(silent){if(!cad.on)return;cad.on=false;$('#sensor').classList.r
   if(v.length<5){$('#cadStatus').textContent='No hubo suficientes datos con ritmo claro. Sujeta mejor el iPhone y mide al menos 20–30 s en el mismo aire.';return}
   const s=statsOf(v),dur=Math.round(cad.est[cad.est.length-1].t);
   $('#cadSum').hidden=false;$('#cadSum').innerHTML=`<div><b>${Math.round(s.m)}</b>media (trancos/min)</div><div><b>${Math.round(Math.min(...v))}–${Math.round(Math.max(...v))}</b>mín–máx</div><div><b>${s.cv.toFixed(1).replace('.',',')} %</b>variación</div>`;
-  $('#cadStatus').textContent=`${GAIT[cadGait].name}, ${dur} s: ${Math.round(s.m)} trancos/min de media, ${cvWord(s.cv)}. La variación compara tramos de unos segundos, no tranco a tranco.`;
-  if(+$('#cadEvery').value)cadSay(`Media ${Math.round(s.m)}. ${cvWord(s.cv).split(':')[0]}`);
-  addHist({aire:GAIT[cadGait].name,m:Math.round(s.m),cv:s.cv,dur,how:'auto'})}
+  $('#cadStatus').textContent=`${pick.horse} (${pick.rider}) · ${GAIT[cadGait].name}, ${dur} s: ${Math.round(s.m)} trancos/min de media, ${cvWord(s.cv)}. La variación compara tramos de unos segundos, no tranco a tranco.`;
+  if(+$('#cadEvery').value)cadSay(`${pick.horse}, ${GAIT[cadGait].name.toLowerCase()}: media ${Math.round(s.m)}. ${cvWord(s.cv).split(':')[0]}`);
+  addHist({caballo:pick.horse,jinete:pick.rider,aire:GAIT[cadGait].name,m:Math.round(s.m),cv:s.cv,dur,how:'auto'})}
 function addHist(h){let a=[];try{a=JSON.parse(store.get(CAD_HIST)||'[]')}catch(e){}
   const d=new Date();h.f=d.toLocaleDateString('es',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
-  a.unshift(h);store.set(CAD_HIST,JSON.stringify(a.slice(0,10)));renderHist()}
-function renderHist(){let a=[];try{a=JSON.parse(store.get(CAD_HIST)||'[]')}catch(e){}
-  $('#cadHist').innerHTML=a.length?a.map(h=>`<li><b>${esc(h.aire)} · ${h.m} trancos/min</b><span>${(+h.cv).toFixed(1).replace('.',',')} % · ${h.how==='tap'?'TAP':h.dur+' s'} · ${esc(h.f)}</span></li>`).join('')
+  a.unshift(h);store.set(CAD_HIST,JSON.stringify(a.slice(0,300)));renderHist()}
+function readHist(){try{return JSON.parse(store.get(CAD_HIST)||'[]')}catch(e){return[]}}
+let histHorse=null;
+function renderHist(){const a=readHist(),HS=$$('#cadHorse button').map(b=>b.textContent),GS=['Paso','Trote','Galope'];
+  // Resumen: media de las mediciones por caballo y aire
+  let t='<tr><th>Caballo</th>'+GS.map(g=>`<th>${g}</th>`).join('')+'</tr>';
+  HS.forEach(hn=>{t+=`<tr><td><button class="btn sm${histHorse===hn?' on':''}" data-h="${esc(hn)}">${esc(hn)}</button></td>`+GS.map(g=>{
+    const v=a.filter(h=>h.caballo===hn&&h.aire===g).map(h=>+h.m);if(!v.length)return'<td>–</td>';
+    return`<td><b>${Math.round(v.reduce((x,y)=>x+y,0)/v.length)}</b><small>(${v.length})</small></td>`}).join('')+'</tr>'});
+  $('#cadRes').innerHTML=t;
+  $$('#cadRes [data-h]').forEach(b=>b.onclick=()=>{histHorse=histHorse===b.dataset.h?null:b.dataset.h;renderHist()});
+  const list=histHorse?a.filter(h=>h.caballo===histHorse):a;
+  $('#histFilter').textContent=histHorse?`Mostrando solo ${histHorse}. Toca su nombre otra vez para ver todos.`:'';
+  $('#cadHist').innerHTML=list.length?list.slice(0,40).map(h=>`<li><b>${esc(h.caballo||'–')} · ${esc(h.aire)} · ${h.m}</b><span>${esc(h.jinete||'')} · ${(+h.cv).toFixed(1).replace('.',',')} % · ${h.how==='tap'?'TAP':h.dur+' s'} · ${esc(h.f)}</span></li>`).join('')
     :'<li><span>Todavía no hay mediciones.</span></li>'}
+// Caballo y jinete elegidos (se recuerdan en este iPhone)
+const pick={horse:store.get('cad-horse')||'Orador',rider:store.get('cad-rider')||'Juan'};
+function setupPick(sel,key,prop){const bs=$$(sel+' button');if(!bs.some(b=>b.textContent===pick[prop]))pick[prop]=bs[0].textContent;
+  bs.forEach(b=>{b.classList.toggle('on',b.textContent===pick[prop]);b.onclick=()=>{pick[prop]=b.textContent;store.set(key,pick[prop]);bs.forEach(x=>x.classList.toggle('on',x===b))}})}
+setupPick('#cadHorse','cad-horse','horse');setupPick('#cadRider','cad-rider','rider');
+(()=>{const b=$('#histClear');let t=null;b.onclick=()=>{if(b.classList.contains('armed')){clearTimeout(t);b.classList.remove('armed');b.textContent='Borrar historial';
+    store.set(CAD_HIST,'[]');histHorse=null;renderHist();return}
+  b.classList.add('armed');b.textContent='Toca otra vez para borrar todo';t=setTimeout(()=>{b.classList.remove('armed');b.textContent='Borrar historial'},3000)}})();
 $('#cadStart').onclick=cadStart;$('#cadStop').onclick=()=>cadStop(false);
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&cad.on){cadStop(false);$('#cadStatus').textContent+=' (Se paró porque la pantalla se apagó o cambiaste de app.)'}});
 // Contador manual
@@ -191,7 +227,7 @@ function tapRender(){const iv=[];for(let i=1;i<taps.length;i++)iv.push(taps[i]-t
 $('#tapBtn').addEventListener('pointerdown',e=>{e.preventDefault();const t=performance.now();
   if(taps.length&&t-taps[taps.length-1]>2500){if(taps.length>=9)tapSave();taps=[]}taps.push(t);tapRender()});
 function tapSave(){const iv=[];for(let i=1;i<taps.length;i++)iv.push(taps[i]-taps[i-1]);const s=statsOf(iv.slice(-16));
-  addHist({aire:'TAP',m:Math.round(60000/s.m),cv:s.cv,dur:0,how:'tap'})}
+  addHist({caballo:pick.horse,jinete:pick.rider,aire:GAIT[cadGait].name,m:Math.round(60000/s.m),cv:s.cv,dur:0,how:'tap'})}
 $('#tapReset').onclick=()=>{if(taps.length>=9)tapSave();taps=[];tapRender()};
 renderHist();
 
