@@ -167,7 +167,8 @@ function cadEstimate(){const ts=cad.ts,vs=cad.vs;if(ts.length<60)return null;con
   const [T0,T1]=GAIT[cadGait].T,l0=Math.floor(T0*fs),l1=Math.ceil(T1*fs),ac=l=>{let s=0;for(let i=0;i+l<n;i++)s+=x[i]*x[i+l];return s/e0*n/(n-l)};
   let best=-1,bl=0;const r=[];for(let l=l0-1;l<=l1+1;l++){r[l]=ac(l)}
   for(let l=l0;l<=l1;l++)if(r[l]>best&&r[l]>=r[l-1]&&r[l]>=r[l+1]){best=r[l];bl=l}
-  if(!bl)return null;const d=(r[bl-1]-r[bl+1])/(2*(r[bl-1]-2*r[bl]+r[bl+1])||1),T=(bl+(Math.abs(d)<1?d:0))/fs;
+  // Si el máximo cae justo en el borde del rango, el ritmo real está fuera de este aire (p. ej. una parada o el paso atrás): no se da cifra
+  if(!bl||bl<=l0||bl>=l1)return null;const d=(r[bl-1]-r[bl+1])/(2*(r[bl-1]-2*r[bl]+r[bl+1])||1),T=(bl+(Math.abs(d)<1?d:0))/fs;
   return{spm:60/T,r:best}}
 function cadTick(){const t=performance.now()/1000;
   if(!cad.got&&t-cad.tStart>3){cadStop(true);$('#sensorTxt').textContent='El sensor no envía datos';$('#cadStatus').textContent='El sensor de movimiento no envía datos. Cierra la pestaña, vuelve a abrir la página y, al pulsar Empezar, toca Permitir. Mientras tanto puedes usar el contador TAP.';return}
