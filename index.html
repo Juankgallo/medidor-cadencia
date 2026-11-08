@@ -248,7 +248,7 @@ function readSessions(){try{return JSON.parse(store.get(SES_KEY)||'[]')}catch(e)
 function writeSessions(a){
   // Si no cabe en el almacenamiento del navegador se quitan las más antiguas
   while(a.length){try{localStorage.setItem(SES_KEY,JSON.stringify(a));return true}catch(e){a.pop()}}try{localStorage.setItem(SES_KEY,'[]')}catch(e){}return false}
-function saveSession(x){const a=readSessions();a.unshift(x);writeSessions(a.slice(0,40));renderSessions()}
+function saveSession(x){const a=readSessions();a.unshift(x);writeSessions(a.slice(0,150));renderSessions()}
 const sesName=x=>{const d=new Date(x.inicio),z=n=>String(n).padStart(2,'0'),slug=t=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'');
   return `cadencia_${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}_${slug(x.caballo)}_${slug(x.obstaculo)}.json`};
 async function exportJSON(obj,name){const blob=new Blob([JSON.stringify(obj)],{type:'application/json'}),file=new File([blob],name,{type:'application/json'});
