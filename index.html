@@ -52,6 +52,7 @@ header .back{align-self:flex-start;padding:8px 12px;font-size:14px}
 .cad-read .cad-sig{margin-left:auto;text-align:right}
 .cad-chart{width:100%;height:100px;display:block;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
 .cad-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cad-sum>div:nth-child(4){grid-column:1/-1}
 .cad-sum div{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:12.5px;color:var(--muted);min-width:0}
 .cad-sum div b{display:block;font-size:20px;color:var(--ink);font-variant-numeric:tabular-nums}
 .tapbtn{width:100%;height:120px;border:0;border-radius:16px;background:var(--accent);color:var(--accent-ink);font-family:var(--f-display);font-weight:800;font-size:44px;letter-spacing:.06em;touch-action:manipulation;user-select:none;-webkit-user-select:none}
@@ -83,6 +84,7 @@ header .back{align-self:flex-start;padding:8px 12px;font-size:14px}
 .sensor{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .sensor i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--line)}
 .sensor.live i{background:var(--accent)}
+.sensor.warn{color:#b35c00;font-weight:600}.sensor.warn i{background:#e08a1e;animation:blink .6s infinite alternate}@keyframes blink{to{opacity:.25}}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -166,7 +168,7 @@ const cad={on:false,t0:0,tStart:0,count:0,ts:[],vs:[],dc:null,est:[],last:0,last
 $$('#cadGait button').forEach(b=>b.onclick=()=>{cadGait=b.dataset.g;$$('#cadGait button').forEach(x=>x.classList.toggle('on',x===b))});
 function cadSay(t){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='es-ES';speechSynthesis.speak(u)}catch(e){}}
 function onMotion(e){const a=e.accelerationIncludingGravity;if(!a||a.x==null)return;if(!cad.got){$('#sensor').classList.add('live');$('#sensorTxt').textContent='Sensor activo'}cad.got=true;
-  const t=performance.now()/1000,v=Math.hypot(a.x,a.y,a.z);
+  const t=performance.now()/1000,v=Math.hypot(a.x,a.y,a.z);cad.lastEv=t;if(cad.pausa!=null)finPausa(t);
   if(rec.on){const ms=t*1000-rec.perf0,i=Math.floor(ms/(1000/REC_HZ)),r=Math.round(v*100)/100;while(rec.raw.length<=i)rec.raw.push(r);
     // Sacudida de sincronización: primer golpe fuerte (más de ~1,2 g sobre la gravedad) mientras dura la cuenta atrás
     if(rec.mark==null&&cad.count>0&&Math.abs(v-9.81)>12){rec.mark=Math.round(ms);$('#cadMark').hidden=false;$('#cadMark').classList.add('ok');
@@ -183,6 +185,19 @@ function cadEstimate(){const ts=cad.ts,vs=cad.vs;if(ts.length<60)return null;con
   // Si el máximo cae justo en el borde del rango, el ritmo real está fuera de este aire (p. ej. una parada o el paso atrás): no se da cifra
   if(!bl||bl<=l0||bl>=l1)return null;const d=(r[bl-1]-r[bl+1])/(2*(r[bl-1]-2*r[bl]+r[bl+1])||1),T=(bl+(Math.abs(d)<1?d:0))/fs;
   return{spm:60/T,r:best}}
+
+// ===== Aviso en vivo: el iPhone deja de enviar datos de movimiento =====
+// Un corte es un hueco de más de 0,5 s sin eventos del sensor. Se avisa en pantalla y, si es largo (≥2 s) y la voz está activa, en voz alta.
+const CORTE_MIN=0.5;
+function vigilaSensor(){if(!cad.on||!cad.got||cad.lastEv==null)return;const t=performance.now()/1000,gap=t-cad.lastEv;
+  if(gap>=CORTE_MIN){if(cad.pausa==null){cad.pausa=cad.lastEv;cad.dijoPausa=false}
+    $('#sensor').classList.add('warn');$('#sensorTxt').textContent=`⚠ Sensor en pausa (${gap.toFixed(1).replace('.',',')} s) · no toques la pantalla`;
+    if(gap>=2&&!cad.dijoPausa&&+$('#cadEvery').value){cad.dijoPausa=true;cadSay('Sensor en pausa')}}}
+function finPausa(t){const d=t-cad.pausa;if(d>=CORTE_MIN)cad.cortes.push([Math.round(cad.pausa*1000-rec.perf0),Math.round(d*1000)]);cad.pausa=null;
+  const n=cad.cortes.length,tot=cad.cortes.reduce((a,c)=>a+c[1],0)/1000;$('#sensor').classList.remove('warn');
+  if(cad.on)$('#sensorTxt').textContent=n?`Sensor activo · ${n} corte${n>1?'s':''} (${tot.toFixed(1).replace('.',',')} s)`:'Sensor activo'}
+function cortesHtml(){const c=(cad.cortes||[]).filter(x=>x[0]>=rec.from),n=c.length,tot=c.reduce((a,x)=>a+x[1],0)/1000;
+  return `<div><b>${n}</b>corte${n===1?'':'s'} del sensor${n?` (${tot.toFixed(1).replace('.',',')} s)`:''}</div>`}
 function cadTick(){const t=performance.now()/1000;
   if(!cad.got&&t-cad.tStart>3){cadStop(true);$('#sensorTxt').textContent='El sensor no envía datos';$('#cadStatus').textContent='El sensor de movimiento no envía datos. Cierra la pestaña, vuelve a abrir la página y, al pulsar Empezar, toca Permitir. Mientras tanto puedes usar el contador TAP.';return}
   if(cad.count>0){cad.count--;const voz=+$('#cadEvery').value;
@@ -218,6 +233,7 @@ async function cadStart(){
   Object.assign(rec,{on:true,perf0:now*1000,start:Date.now(),raw:[],mark:null,from:0});
   $('#cadMark').hidden=!(cad.count>0);$('#cadMark').classList.remove('ok');$('#cadMark').textContent='Sacude el iPhone 3 veces delante de la cámara…';
   window.addEventListener('devicemotion',onMotion);cad.timer=setInterval(cadTick,1000);
+  Object.assign(cad,{lastEv:null,pausa:null,cortes:[],dijoPausa:false});cad.watch=setInterval(vigilaSensor,250);
   try{cad.wake=await navigator.wakeLock?.request('screen')}catch(e){cad.wake=null}
   const voz=+$('#cadEvery').value,g=GAIT[cadGait].name.toLowerCase();
   $('#cadStart').hidden=true;$('#cadStop').hidden=false;$('#cadSum').hidden=true;$('#notaCard').hidden=true;notaId=null;$('#sensorTxt').textContent='Esperando datos del sensor…';
@@ -225,7 +241,7 @@ async function cadStart(){
     $('#cadStatus').textContent=`Guarda el iPhone bien sujeto. Empieza a medir en ${cad.count} s.`;if(voz)cadSay(`Guarda el iPhone. Empieza en ${cad.count} segundos`)}
   else{$('#cadNow').textContent='–';$('#cadSig').textContent='midiendo…';$('#cadStatus').textContent='Midiendo '+g+'.';if(voz)cadSay('Midiendo '+g)}
   drawCad()}
-function cadStop(silent){if(!cad.on)return;cad.on=false;rec.on=false;$('#sensor').classList.remove('live');if(cad.got)$('#sensorTxt').textContent='Sensor en pausa';window.removeEventListener('devicemotion',onMotion);clearInterval(cad.timer);
+function cadStop(silent){if(!cad.on)return;cad.on=false;rec.on=false;$('#sensor').classList.remove('live');if(cad.got)$('#sensorTxt').textContent='Sensor en pausa';window.removeEventListener('devicemotion',onMotion);clearInterval(cad.timer);clearInterval(cad.watch);if(cad.pausa!=null)finPausa(performance.now()/1000);$('#sensor').classList.remove('warn');
   try{cad.wake&&cad.wake.release()}catch(e){}cad.wake=null;$('#cadStart').hidden=false;$('#cadStop').hidden=true;
   if(silent)return;
   if(cad.count>0){$('#cadNow').textContent='–';$('#cadSig').textContent='';$('#cadStatus').textContent='Cancelado antes de empezar a medir.';return}
@@ -234,7 +250,7 @@ function cadStop(silent){if(!cad.on)return;cad.on=false;rec.on=false;$('#sensor'
   if(v.length<5){$('#cadStatus').textContent='No hubo suficientes datos con ritmo claro para dar una media (normal si hubo paradas). La sesión se guardó igualmente para verla con el video.';
     saveSession(sessionOf(null,v,tEnd));openNota('s'+rec.start);return}
   const s=statsOf(v),dur=Math.round(cad.est[cad.est.length-1].t);
-  $('#cadSum').hidden=false;$('#cadSum').innerHTML=`<div><b>${Math.round(s.m)}</b>media (trancos/min)</div><div><b>${Math.round(Math.min(...v))}–${Math.round(Math.max(...v))}</b>mín–máx</div><div><b>${s.cv.toFixed(1).replace('.',',')} %</b>variación</div>`;
+  $('#cadSum').hidden=false;$('#cadSum').innerHTML=`<div><b>${Math.round(s.m)}</b>media (trancos/min)</div><div><b>${Math.round(Math.min(...v))}–${Math.round(Math.max(...v))}</b>mín–máx</div><div><b>${s.cv.toFixed(1).replace('.',',')} %</b>variación</div>`+cortesHtml();
   $('#cadStatus').textContent=`${pick.horse} (${pick.rider}) · ${GAIT[cadGait].name}, ${dur} s: ${Math.round(s.m)} trancos/min de media, ${cvWord(s.cv)}. La variación compara tramos de unos segundos, no tranco a tranco.`;
   if(+$('#cadEvery').value)cadSay(`${pick.horse}, ${GAIT[cadGait].name.toLowerCase()}: media ${Math.round(s.m)}. ${cvWord(s.cv).split(':')[0]}`);
   addHist({id:'s'+rec.start,caballo:pick.horse,jinete:pick.rider,aire:GAIT[cadGait].name,obstaculo:$('#cadObs').value,m:Math.round(s.m),cv:s.cv,dur,how:'auto'});
@@ -243,7 +259,7 @@ function sessionOf(s,v,tEnd){return({v:1,id:'s'+rec.start,inicio:new Date(rec.st
     caballo:pick.horse,jinete:pick.rider,aire:GAIT[cadGait].name,gaitKey:cadGait,obstaculo:$('#cadObs').value,
     hz:REC_HZ,marcaMs:rec.mark,medidaDesdeMs:rec.from,finMs:Math.round(tEnd*1000)+rec.from,
     resumen:s?{media:Math.round(s.m*10)/10,cv:Math.round(s.cv*10)/10,min:Math.round(Math.min(...v)),max:Math.round(Math.max(...v)),dur:Math.round(cad.est[cad.est.length-1].t)}:{media:null,cv:null,min:null,max:null,dur:Math.round(tEnd)},
-    cadencia:cad.est.map(p=>[Math.round(p.t*1000)+rec.from,Math.round(p.spm*10)/10]),senal:rec.raw})}
+    cadencia:cad.est.map(p=>[Math.round(p.t*1000)+rec.from,Math.round(p.spm*10)/10]),cortes:cad.cortes||[],senal:rec.raw})}
 function readSessions(){try{return JSON.parse(store.get(SES_KEY)||'[]')}catch(e){return[]}}
 function writeSessions(a){
   // Si no cabe en el almacenamiento del navegador se quitan las más antiguas
